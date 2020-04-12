@@ -1,0 +1,116 @@
+---
+title: "hw6"
+author: "Qifan Wang"
+date: "4/11/2020"
+output: html_document
+---
+Question 1
+
+```{r}
+auto_data=read.table("auto-mpg.txt",header=FALSE)
+```
+
+```{r}
+colnames(auto_data)=c("mpg","cylinders","displacement","horsepower","weight","acceleration","model_year","origin","car_name")
+```
+
+Remove 6 observations where horsepower is NA:
+```{r}
+# continuous variables
+auto_data=auto_data[complete.cases(auto_data),]
+summary(auto_data[,c(1,2,3,4,5,6)])
+```
+
+```{r}
+brand=rep(0,dim(auto_data)[1])
+for (i in 1:dim(auto_data)[1]){
+  brand[i]=strsplit(as.character(auto_data$car_name[i])," ")[[1]][1]
+}
+table(brand)
+```
+
+Ford, Chevrolet, Plumouth, Amc, Dodge, Toyota consist of 50% of brands of cars in the dataset.
+
+```{r}
+# categorical variables
+library(ggplot2)
+ggplot(data=as.data.frame(auto_data[,7]))+geom_histogram(aes(x=auto_data$model_year),bins=30)+labs(x="model_year")
+table(auto_data$origin)
+```
+
+Model_year is almost evenly distributed between  70-82;
+Most automobiles (245/392) in the dataset are from origin 1;
+
+
+```{r}
+library(PerformanceAnalytics)
+auto_data$horsepower=as.numeric(as.character(auto_data$horsepower))
+chart.Correlation(auto_data[,c(1:6)],histogram = TRUE)
+```
+
+We notice that cylinders, displacement, horsepower and mpg are highly correlated to each other.
+
+
+For PCA, we should use continuous variables, and therefore we'd better remove origin, model_year and car_name.
+
+We may want to use covariance matrix in case that we don't want to waste the information that variance may be able to provide and the scale of the variables is similar to each other. 
+
+We notice that the scale of the variables of this dataset is definitely not similar to each other. Especially the scale of weights (displacement and horsepower as well) is much larger than other variables, and we'd better use correlation matrix in this case. If we use covariance matrix, variables with large scale will dominate in some components.
+
+Below is a comparison of covariance matrix and correlation matrix:
+```{r}
+data.pca=auto_data[,c(1:6)]
+data.cov=cov(data.pca)
+data.cor=cor(data.pca)
+pca.cov=princomp(x=data.pca)
+summary(pca.cov)
+pca.cov$loadings
+```
+
+```{r}
+pca.cor=princomp(x=data.pca,cor=TRUE)
+summary(pca.cor)
+pca.cor$loadings
+```
+
+We see that if we use covariance matrix, weights, horsepower and displacement will almost be first three principal components due to their large scale. In contrast, pca with correlation matrix can reveal some inner structure between variables without being affected by the scale of the data.
+
+```{r}
+summary(pca.cor)
+plot(pca.cor$sdev^2, type = "l")
+```
+
+We notice that the first two components already explained about 92 percent of the total variance and we can simply keep the first two components.
+
+```{r}
+pca.cor$loadings
+```
+
+The first two components reveal two aspects of a car respectively: fuel consumption and acceleration (or torque). Mpg, cylinders, displacement, horsepower and weight are the most important for the first component. These variables are closely related to fuel efficiency and are also higly correlated to each other.
+
+Acceleration, on the other hand is usually another aspect (torque) of evaluating a car, and like what we notice, the second component is dominated by acceleration. 
+
+```{r}
+pca_projections = as.data.frame(scale(data.pca,scale=TRUE) %*% loadings(pca.cor)[, 1:2])
+pca_projections=cbind(pca_projections,auto_data$origin,auto_data$model_year,brand)
+colnames(pca_projections) <- c("Fuel_consumption", "Acceleration","origin","model_year","brand")
+ggplot(data = pca_projections) + 
+  geom_point(aes(x = Fuel_consumption, y = Acceleration,col=as.factor(origin)))
+```
+
+It can be seen that the first component (fuel_consumption) can somehow distinguish the dataset into two parts. Interestingly, all cars from origin 2 or 3 are in the right part.
+
+```{r}
+biplot(pca.cor)
+```
+
+The biplot shows the vector of acceleration is almost vertical to other variables that are highly correlated and this is exactly what distinguishes the first two principal components.
+
+Question 2
+```{r}
+city_info=read.csv("cityD.csv",header=FALSE)
+colnames(city_info)=c("Atlanta","Chicago","Denvor","Houston","Los_Angeles","Miami","New_York","San_Francisco","Seattle","DC")
+city_info=as.matrix(city_info)
+```
+
+

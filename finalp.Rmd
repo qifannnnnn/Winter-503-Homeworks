@@ -1,0 +1,141 @@
+---
+title: "Finalp"
+date: "3/29/2020"
+output: html_document
+---
+```{r include=FALSE}
+library(rpart)
+library(rpart.plot)  
+library(rattle)
+library(ggplot2)
+
+```
+
+
+EDA
+
+```{r}
+w = weatherAUS
+str(w[,3:24])
+# we can remove evaporation, sunshine,Cloud9am,Cloud3pm so many NAs
+# WindGustDir,WindDir9am,WindDir3pm are categorial variable
+```
+```{r}
+weather = w[,-c(1,2,6,7,18,19,23)]
+summary(weather)
+```
+```{r}
+#consider the large data set, drop all rows with NAs?
+wdrop = weather[complete.cases(weather), ]
+summary(wdrop)
+set.seed(1)
+num = dim(wdrop)[1]
+id.train = sample(seq(1, num), size = num * 0.7)
+train = wdrop[id.train, ]
+test = wdrop[-id.train, ]
+```
+
+```{r}
+plot(MaxTemp ~RainTomorrow, data=wdrop)
+plot(MinTemp ~RainTomorrow, data=wdrop)
+plot(Rainfall ~RainTomorrow, data=wdrop)
+plot(WindGustSpeed ~RainTomorrow, data=wdrop)
+plot(WindSpeed9am ~RainTomorrow, data=wdrop)
+plot(WindSpeed3pm ~RainTomorrow, data=wdrop)
+plot(Humidity9am ~RainTomorrow, data=wdrop)
+plot(Humidity3pm ~RainTomorrow, data=wdrop)
+plot(Pressure9am ~RainTomorrow, data=wdrop)
+plot(Pressure3pm ~RainTomorrow, data=wdrop)
+plot(Temp9am ~RainTomorrow, data=wdrop)
+plot(Temp3pm ~RainTomorrow, data=wdrop)
+
+# Humidity3pm and Humidity9am seem to be relatively very useful in predicting raining
+
+```
+
+
+mixed type of data:
+
+tree:
+```{r}
+tree.gini = rpart(RainTomorrow ~ ., train, parms = list(split = "gini"), method = "class")
+plotcp(tree.gini)
+```
+The plot indicates that it is better to choose $C_p = 0.023 or 0.011$.
+
+
+```{r}
+tree1 = rpart(RainTomorrow ~ ., train, parms = list(split = "gini"), method = "class", cp=0.011)
+test.pred=predict(tree1, test, type="class")
+table(test.pred, test$RainTomorrow)
+
+
+# the percentage of days in the test set that were misclassified???
+sum(test.pred != test$RainTomorrow) / dim(test)[1]
+```
+
+```{r}
+fancyRpartPlot(tree1)
+```
+
+```{r, include=FALSE}
+library(randomForest)
+```
+
+```{r}
+set.seed(2020)
+rf_dep= randomForest(RainTomorrow ~ ., data = train, mtry = floor(sqrt(16)),
+                       importance = TRUE)
+```
+
+```{r}
+test.pred=predict(rf_dep, test, type="class")
+table(test.pred, test$RainTomorrow)
+
+# the percentage of days in the test set that were misclassified???
+sum(test.pred != test$RainTomorrow) / dim(test)[1]
+
+
+```
+```{r}
+importance(rf_dep)
+varImpPlot(rf_dep)
+```
+
+
+
+```{r, include=FALSE}
+library(gbm)
+```
+
+
+```{r}
+train$RainTomorrow= ifelse(train$RainTomorrow=="Yes",1,0)
+test$RainTomorrow= ifelse(test$RainTomorrow=="Yes",1,0)
+```
+```{r}
+set.seed(2020)
+ada_dep = gbm(RainTomorrow~., data = train, distribution = "adaboost", n.trees = 1000,shrinkage=0.008, interaction.depth = 4)
+```
+```{r}
+ada_pred_response = predict(ada_dep, newdata = test, n.trees = 1000, 
+                            type = "response")
+ada_pred = ifelse(ada_pred_response>0.5,1,0)
+table(ada_pred,test$RainTomorrow)
+sum(ada_pred != test$RainTomorrow) / dim(test)[1]
+```
+```{r}
+summary(ada_dep)
+```
+
+
+
+
+PCA
+```{r}
+pca_data <- as.matrix(train[,-c(4,6,7,16,17)])
+pca_results <- princomp(pca_data, cor = F)
+summary(pca_results)
+plot(pca_results)
+```
+
